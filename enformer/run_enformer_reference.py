@@ -2,7 +2,7 @@ from optparse import OptionParser
 import tensorflow as tf
 # Make sure the GPU is enabled
 # assert tf.config.list_physical_devices('GPU')
-
+import argparse
 import tensorflow_hub as hub
 import joblib
 import gzip
@@ -17,6 +17,7 @@ import multiprocessing as mp
 from itertools import repeat, product
 from functools import partial
 import os, io
+import json
 
 transform_path = 'gs://dm-enformer/models/enformer.finetuned.SAD.robustscaler-PCA500-robustscaler.transform.pkl'
 model_path = 'https://tfhub.dev/deepmind/enformer/1'
@@ -94,36 +95,37 @@ if __name__=="__main__":
     - consensus_dir: directory containing consensus and reference sequences for each gene
     - genes_csv: file containing Ensembl gene IDs, chromosome, TSS position, gene symbol, and strand
     """
-    usage = "usage: %prog [options] <consensus_dir> <genes_csv>"
-    parser = OptionParser(usage)
-    parser.add_option("-o", dest="out_dir",
-                      default='preds',
-                      type=str,
-                      help="Output directory for predictions [Default: %default]")
-    (options, args) = parser.parse_args()
+    with open("/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/parm/make_consensus_enformer.json","r") as f:
+        param = json.load(f)
 
-    num_expected_args = 2
-    if len(args) != num_expected_args:
-        parser.error(
-            "Incorrect number of arguments, expected {} arguments but got {}".format(num_expected_args, len(args)))
+    parser = argparse.ArgumentParser()
+    # Required parameters
+    parser.add_argument(
+        "--consensus_dir",default=param['consensus_dir'], type = str,
+    )
+    parser.add_argument(
+        "--genes_file",default=param['genes_file'], type = str,
+    )
+    parser.add_argument(
+        "--out_dir",default=param['out_dir'], type = str,
+    )
+    f.close()
 
-    # Setup
-    consensus_dir = args[0]
-    genes_file = args[1]
+    args = parser.parse_args()
 
     model = Enformer(model_path)
 
-    gene_df = pd.read_csv(genes_file, names=["geneId", "chr", "tss", "name", "strand"])
+    gene_df = pd.read_csv(args.genes_file, names=["geneId", "chr", "tss", "name", "strand"])
     print("## Starting predictions ##")
 
-    outFile = open(options.out_dir, "w")
+    outFile = open(args.out_dir, "w")
     outFile.write("geneId,mean,tss3,tss10,max\n")
 
     for i, row in gene_df.iterrows():
         chr = int(row["chr"])
         start = int(row["tss"]) - SEQUENCE_LENGTH // 2
         end = int(row["tss"]) + SEQUENCE_LENGTH // 2 - 1
-        file = f"{consensus_dir}/chr{chr}.fa"
+        file = f"{args.consensus_dir}/chr{chr}.fa"
         fasta_extractor = FastaStringExtractor(file)
         target_interval = kipoiseq.Interval(f'chr{chr}', start, end)
         sequence_one_hot = one_hot_encode(fasta_extractor.extract(target_interval.resize(SEQUENCE_LENGTH)))

@@ -1,0 +1,5 @@
+{
+    "consensus_dir":"/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/consensus/seq",
+    "genes_file":"/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/data/gene_list_demo.csv",
+    "out_dir":"/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/output/enformer_res.txt"
+}

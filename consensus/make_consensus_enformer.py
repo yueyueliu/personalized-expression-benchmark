@@ -7,10 +7,12 @@ import sys
 import multiprocessing as mp
 import pyfaidx
 from itertools import product
+import json
 
 REF_DIR = "ref"
 INDS = "inds"
 vcf_dir = "data/variants"
+OUT_DIR = "/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/consensus/seq"
 SEQUENCE_LENGTH = 393216
 INTERVAL = 114688
 
@@ -25,20 +27,22 @@ def get_items(file):
 
 
 def get_sample_files(sample, gene_id):
-    return f"{options.out_dir}/{INDS}/{sample}/{gene_id}.1pIu.fa", f"{options.out_dir}/{INDS}/{sample}/{gene_id}.2pIu.fa"
+    return f"{OUT_DIR}/{INDS}/{sample}/{gene_id}.1pIu.fa", f"{args.out_dir}/{INDS}/{sample}/{gene_id}.2pIu.fa"
 
 def get_index_files(sample, gene_id):
-    return f"{options.out_dir}/{INDS}/{sample}/{gene_id}.1pIu.fai", f"{options.out_dir}/{INDS}/{sample}/{gene_id}.2pIu.fai"
+    return f"{OUT_DIR}/{INDS}/{sample}/{gene_id}.1pIu.fai", f"{args.out_dir}/{INDS}/{sample}/{gene_id}.2pIu.fai"
 
 def generate_ref(ref_fasta_dir, gene):
     # gene format: 'ENSG00000263280,16,2917619,AC003965.1,-'
     gene_id, chr, tss, _, strand = gene.split(",")
     print(f"#### Starting reference fasta for {gene_id} ####")
-    out_file = f"{REF_DIR}/{gene_id}.fa"
+    out_file = f"{args.out_dir}/{REF_DIR}/{gene_id}.fa"
+    # command = "module load samtools"
+    # subprocess.run(command, shell=True, executable='/bin/bash')
     with open(out_file, "w") as f:
         start, end = int(tss) - SEQUENCE_LENGTH // 2, int(tss) + SEQUENCE_LENGTH // 2 - 1
 #        start, end = int(tss) - INTERVAL // 2, int(tss) + INTERVAL // 2
-        ref_command = f"samtools faidx {ref_fasta_dir} chr{chr}:{start}-{end} -o {out_file}"
+        ref_command = f"module load samtools; samtools faidx {ref_fasta_dir} chr{chr}:{start}-{end} -o {out_file}"
         subprocess.run(ref_command, shell=True)
 
 
@@ -49,17 +53,17 @@ def generate_consensus(pair):
     ind1, ind2 = get_index_files(sample, gene_id)
 
     print(f"#### Starting consensus fasta for {gene_id}, Sample {sample} ####")
-    hap1 = f"bcftools consensus -s {sample} -f {options.out_dir}/{REF_DIR}/{gene_id}.fa -I -H 1pIu {get_vcf(chr)} > {out1}"
-    hap2 = f"bcftools consensus -s {sample} -f {options.out_dir}/{REF_DIR}/{gene_id}.fa -I -H 2pIu {get_vcf(chr)} > {out2}"
+    hap1 = f"module load bcftools; bcftools consensus -s {sample} -f {OUT_DIR}/{REF_DIR}/{gene_id}.fa -I -H 1pIu {get_vcf(chr)} > {out1}"
+    hap2 = f"module load bcftools; bcftools consensus -s {sample} -f {OUT_DIR}/{REF_DIR}/{gene_id}.fa -I -H 2pIu {get_vcf(chr)} > {out2}"
     subprocess.run(hap1, shell=True)
     subprocess.run(hap2, shell=True)
     pyfaidx.Faidx(out1)
     pyfaidx.Faidx(out2)
 
-def make_dirs(samples):
+def make_dirs(args,samples):
     for sample in samples:
-        if not os.path.exists(f"{options.out_dir}/{INDS}/{sample}"):
-            os.makedirs(f"{options.out_dir}/{INDS}/{sample}")
+        if not os.path.exists(f"{args.out_dir}/{INDS}/{sample}"):
+            os.makedirs(f"{args.out_dir}/{INDS}/{sample}")
 
 if __name__ == "__main__":
     """
@@ -71,38 +75,46 @@ if __name__ == "__main__":
     - genes_csv: file containing Ensembl gene IDs, chromosome, TSS position, gene symbol, and strand
     - sample_file: file containing individuals names
     """
-    usage = "usage: %prog [options] <ref_fasta_dir> <vcf_dir> <genes_csv> <sample_file>"
-    parser = OptionParser(usage)
-    parser.add_option("-o", dest="out_dir",
-                      default='consensus/seqs',
-                      type=str,
-                      help="Output directory for predictions [Default: %default]")
-    (options, args) = parser.parse_args()
+    with open("/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/parm/make_consensus_enformer.json","r") as f:
+        param = json.load(f)
 
-    num_expected_args = 4
-    if len(args) != num_expected_args:
-        parser.error(
-            "Incorrect number of arguments, expected {} arguments but got {}".format(num_expected_args, len(args)))
+    parser = argparse.ArgumentParser()
+    # Required parameters
+    parser.add_argument(
+        "--ref_fasta_dir",default=param['ref_fasta_dir'], type = str,
+    )
+    parser.add_argument(
+        "--vcf_dir",default=param['vcf_dir'], type = str,
+    )
+    parser.add_argument(
+        "--genes_file",default=param['genes_file'], type = str,
+    )
+    parser.add_argument(
+        "--sample_file",default=param['sample_file'], type = str,
+    )
+    parser.add_argument(
+        "--out_dir",default=param['out_dir'], type = str,
+    )
+    f.close()
 
-    # Setup
-    ref_fasta_dir = args[0]
-    vcf_dir = args[1]
-    genes_file = args[2]
-    sample_file = args[3]
+    args = parser.parse_args()
 
-    if not os.path.exists(options.out_dir):
-        os.makedirs(options.out_dir)
-    if not os.path.exists(options.out_dir + "/" + REF_DIR):
-        os.makedirs(options.out_dir + "/" + REF_DIR)
-    if not os.path.exists(options.out_dir + "/" + INDS):
-        os.makedirs(options.out_dir + "/" + INDS)
+    if not os.path.exists(args.out_dir):
+        os.makedirs(args.out_dir)
+    if not os.path.exists(args.out_dir + "/" + REF_DIR):
+        os.makedirs(args.out_dir + "/" + REF_DIR)
+    if not os.path.exists(args.out_dir + "/" + INDS):
+        os.makedirs(args.out_dir + "/" + INDS)
 
-    genes = get_items(genes_file)
-    for gene in genes:
-        generate_ref(ref_fasta_dir, gene)
-    samples = get_items(sample_file)
+    genes = get_items(args.genes_file)
+    # for gene in genes:
+    #     generate_ref(args.ref_fasta_dir, gene)
+
+    samples = get_items(args.sample_file)
+
     #make sample directories
-    make_dirs(samples)
+    make_dirs(args,samples)
+
     pool = mp.Pool(processes=mp.cpu_count())
     with pool:
         pairs = product(genes, samples)

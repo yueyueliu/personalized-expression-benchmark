@@ -1,0 +1,7 @@
+{
+    "ref_fasta_dir": "/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/data/ref_fasta/hg19.fa",
+    "vcf_dir":"/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/data/variants",
+    "genes_file":"/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/data/gene_list_demo.csv",
+    "sample_file":"/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/consensus/samples.txt",
+    "out_dir":"/storage/zhangkaiLab/liuyue87/Projects/personalized-expression-benchmark/consensus/seq"
+}
